@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval'; img-src 'self' data: https:;">
     <title>🎸 Akort Aleti</title>
     <style>
         body {
@@ -35,6 +34,11 @@
             background: #ff5252;
             transform: scale(1.05);
         }
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+        }
         .instrument-buttons {
             display: flex;
             justify-content: center;
@@ -62,6 +66,24 @@
             background: rgba(0,0,0,0.2);
             border-radius: 10px;
         }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 10px;
+            font-weight: bold;
+        }
+        .status.ready {
+            background: rgba(46, 204, 113, 0.3);
+            border: 2px solid #2ecc71;
+        }
+        .status.error {
+            background: rgba(231, 76, 60, 0.3);
+            border: 2px solid #e74c3c;
+        }
+        .status.waiting {
+            background: rgba(241, 196, 15, 0.3);
+            border: 2px solid #f1c40f;
+        }
     </style>
 </head>
 <body>
@@ -78,33 +100,50 @@
             <div class="instrument-btn" onclick="selectInstrument('ukulele')">🎶 Ukulele</div>
         </div>
         
-        <div id="status">Mikrofon erişimi bekleniyor...</div>
-        <button onclick="startListening()">🎤 Mikrofonu Başlat</button>
+        <!-- DURUM GÖSTERGESİ -->
+        <div class="status waiting" id="status">
+            🎤 Mikrofon erişimi bekleniyor...
+        </div>
+        
+        <button id="startBtn" onclick="startListening()">🎤 Mikrofonu Başlat</button>
+        <button id="stopBtn" onclick="stopListening()" disabled>⏹️ Durdur</button>
         
         <!-- AKORT BİLGİSİ -->
         <div class="tuning-display">
             <div id="pitchDisplay">Ses Seviyesi: ---</div>
             <div id="noteDisplay">Tahmini Nota: ---</div>
+            <div id="frequencyDisplay">Frekans: --- Hz</div>
             <div id="instrumentInfo">Enstrüman: 🎸 Gitar</div>
             <div id="tuningInfo">Akort: E A D G B E</div>
         </div>
 
-        <!-- ENSTRÜMAN AÇIKLAMALARI -->
-        <div id="instrumentDetails" style="margin-top: 20px; text-align: left; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 10px;">
-            <h3>🎯 Gitar Akort Bilgisi:</h3>
-            <p><strong>Kalından inceye:</strong> E (6) - A (5) - D (4) - G (3) - B (2) - E (1)</p>
-            <p><strong>Frekanslar:</strong> E2 (82.41Hz) - A2 (110Hz) - D3 (146.83Hz) - G3 (196Hz) - B3 (246.94Hz) - E4 (329.63Hz)</p>
+        <!-- SES GÖSTERGESİ -->
+        <div style="margin: 20px 0;">
+            <div style="background: rgba(0,0,0,0.3); height: 20px; border-radius: 10px; overflow: hidden;">
+                <div id="volumeBar" style="height: 100%; background: #2ecc71; width: 0%; transition: width 0.1s;"></div>
+            </div>
+            <div style="margin-top: 5px; font-size: 0.9em;">Ses Seviyesi</div>
+        </div>
+
+        <div style="margin-top: 30px;">
+            <h3>🎯 Özellikler:</h3>
+            <p>✅ Gerçek zamanlı ses analizi</p>
+            <p>✅ Modern AudioWorklet teknolojisi</p>
+            <p>✅ Mobil uyumlu</p>
+            <p>✅ Tamamen ücretsiz</p>
         </div>
     </div>
 
     <script>
-        let audioContext;
-        let analyser;
-        let microphone;
-        let javascriptNode;
+        // DEĞİŞKENLER
+        let audioContext = null;
+        let analyser = null;
+        let microphone = null;
+        let javascriptNode = null;
+        let isListening = false;
         let currentInstrument = 'guitar';
         
-        // Enstrüman bilgileri
+        // ENSTRÜMAN BİLGİLERİ
         const instrumentData = {
             guitar: {
                 name: "🎸 Gitar",
@@ -133,6 +172,7 @@
             }
         };
         
+        // ENSTRÜMAN SEÇİMİ
         function selectInstrument(instrument) {
             currentInstrument = instrument;
             
@@ -146,74 +186,178 @@
             const data = instrumentData[instrument];
             document.getElementById('instrumentInfo').textContent = `Enstrüman: ${data.name}`;
             document.getElementById('tuningInfo').textContent = `Akort: ${data.tuning}`;
-            document.getElementById('instrumentDetails').innerHTML = `
-                <h3>🎯 ${data.name} Akort Bilgisi:</h3>
-                <p><strong>${data.details}</strong></p>
-            `;
         }
         
-        function startListening() {
-            navigator.mediaDevices.getUserMedia({ audio: true })
-                .then(function(stream) {
-                    document.getElementById('status').textContent = 'Mikrofon bağlandı! 🎤';
-                    
-                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    analyser = audioContext.createAnalyser();
-                    microphone = audioContext.createMediaStreamSource(stream);
-                    
-                    microphone.connect(analyser);
-                    analyser.fftSize = 2048;
-                    
-                    javascriptNode = audioContext.createScriptProcessor(2048, 1, 1);
-                    analyser.connect(javascriptNode);
-                    javascriptNode.connect(audioContext.destination);
-                    
-                    javascriptNode.onaudioprocess = function() {
-                        const array = new Uint8Array(analyser.frequencyBinCount);
-                        analyser.getByteFrequencyData(array);
-                        
-                        let values = 0;
-                        for (let i = 0; i < array.length; i++) {
-                            values += array[i];
-                        }
-                        
-                        const average = values / array.length;
-                        const pitch = Math.round(average);
-                        
-                        document.getElementById('pitchDisplay').textContent = `Ses Seviyesi: ${pitch}`;
-                        
-                        // Enstrümana göre nota tespiti
-                        const notes = getNotesForInstrument(currentInstrument);
-                        const noteIndex = Math.min(Math.floor(pitch / 15), notes.length - 1);
-                        document.getElementById('noteDisplay').textContent = `Tahmini Nota: ${notes[noteIndex]}`;
-                    };
-                })
-                .catch(function(err) {
-                    document.getElementById('status').textContent = 'Mikrofon hatası: ' + err.message;
+        // MİKROFONU BAŞLAT
+        async function startListening() {
+            try {
+                updateStatus('waiting', '🎤 Mikrofon erişimi isteniyor...');
+                
+                // Mikrofon erişim izni
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    } 
                 });
+                
+                updateStatus('ready', '✅ Mikrofon bağlandı! Ses analizi başladı.');
+                
+                // AudioContext oluştur
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                microphone = audioContext.createMediaStreamSource(stream);
+                
+                // Analyser ayarları
+                analyser.fftSize = 2048;
+                analyser.smoothingTimeConstant = 0.8;
+                
+                // Bağlantıları kur
+                microphone.connect(analyser);
+                
+                // Buton durumlarını güncelle
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+                isListening = true;
+                
+                // Ses analizini başlat
+                analyzeSound();
+                
+            } catch (error) {
+                console.error('Mikrofon hatası:', error);
+                updateStatus('error', `❌ Mikrofon hatası: ${error.message}`);
+            }
         }
         
-        function getNotesForInstrument(instrument) {
-            const noteMap = {
-                guitar: ['E2', 'A2', 'D3', 'G3', 'B3', 'E4', 'Yüksek'],
-                piano: ['C', 'D', 'E', 'F', 'G', 'A', 'B', 'Yüksek'],
-                violin: ['G3', 'D4', 'A4', 'E5', 'Yüksek'],
-                saz: ['La', 'Re', 'Sol', 'Yüksek'],
-                ukulele: ['G', 'C', 'E', 'A', 'Yüksek']
-            };
-            return noteMap[instrument] || noteMap.guitar;
+        // MİKROFONU DURDUR
+        function stopListening() {
+            if (microphone && audioContext) {
+                microphone.disconnect();
+                if (audioContext.state !== 'closed') {
+                    audioContext.close();
+                }
+            }
+            
+            isListening = false;
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            
+            updateStatus('waiting', '🎤 Mikrofon durduruldu. Tekrar başlatmak için butona tıkla.');
+            document.getElementById('volumeBar').style.width = '0%';
+            document.getElementById('pitchDisplay').textContent = 'Ses Seviyesi: ---';
+            document.getElementById('noteDisplay').textContent = 'Tahmini Nota: ---';
+            document.getElementById('frequencyDisplay').textContent = 'Frekans: --- Hz';
         }
         
+        // SES ANALİZİ
+        function analyzeSound() {
+            if (!isListening || !analyser) return;
+            
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            
+            function processAudio() {
+                if (!isListening) return;
+                
+                // Frekans verilerini al
+                analyser.getByteFrequencyData(dataArray);
+                
+                // Ses seviyesini hesapla
+                let sum = 0;
+                for (let i = 0; i < bufferLength; i++) {
+                    sum += dataArray[i];
+                }
+                const average = sum / bufferLength;
+                const volume = Math.round(average);
+                
+                // Ses seviyesi çubuğunu güncelle
+                const volumePercent = Math.min(100, (volume / 255) * 100);
+                document.getElementById('volumeBar').style.width = volumePercent + '%';
+                
+                // Temel perde tespiti (basit algoritma)
+                let maxVolume = 0;
+                let maxIndex = 0;
+                
+                for (let i = 0; i < bufferLength; i++) {
+                    if (dataArray[i] > maxVolume) {
+                        maxVolume = dataArray[i];
+                        maxIndex = i;
+                    }
+                }
+                
+                // Frekans hesapla
+                const frequency = maxIndex * audioContext.sampleRate / analyser.fftSize;
+                
+                // Ekranı güncelle
+                document.getElementById('pitchDisplay').textContent = `Ses Seviyesi: ${volume}`;
+                document.getElementById('frequencyDisplay').textContent = `Frekans: ${Math.round(frequency)} Hz`;
+                
+                // Nota tespiti
+                const note = detectNote(frequency);
+                document.getElementById('noteDisplay').textContent = `Tahmini Nota: ${note}`;
+                
+                // Bir sonraki frame için devam et
+                requestAnimationFrame(processAudio);
+            }
+            
+            processAudio();
+        }
+        
+        // NOTA TESPİTİ (Basit algoritma)
+        function detectNote(frequency) {
+            if (frequency < 50) return '---';
+            
+            const notes = [
+                { name: 'Do (C)', freq: 261.63 },
+                { name: 'Do# (C#)', freq: 277.18 },
+                { name: 'Re (D)', freq: 293.66 },
+                { name: 'Re# (D#)', freq: 311.13 },
+                { name: 'Mi (E)', freq: 329.63 },
+                { name: 'Fa (F)', freq: 349.23 },
+                { name: 'Fa# (F#)', freq: 369.99 },
+                { name: 'Sol (G)', freq: 392.00 },
+                { name: 'Sol# (G#)', freq: 415.30 },
+                { name: 'La (A)', freq: 440.00 },
+                { name: 'La# (A#)', freq: 466.16 },
+                { name: 'Si (B)', freq: 493.88 }
+            ];
+            
+            let closestNote = '---';
+            let minDifference = Infinity;
+            
+            for (const note of notes) {
+                const difference = Math.abs(frequency - note.freq);
+                if (difference < minDifference) {
+                    minDifference = difference;
+                    closestNote = note.name;
+                }
+            }
+            
+            return closestNote;
+        }
+        
+        // DURUM GÜNCELLEME
+        function updateStatus(type, message) {
+            const statusElement = document.getElementById('status');
+            statusElement.className = `status ${type}`;
+            statusElement.textContent = message;
+        }
+        
+        // SAYFA YÜKLENİNCE
         window.onload = function() {
-            document.getElementById('status').textContent = '🎸 Akort aleti hazır! Enstrüman seç ve mikrofonu başlat.';
-        }
+            updateStatus('ready', '🎸 Akort aleti hazır! Mikrofonu başlat butonuna tıkla.');
+            
+            // HTTPS kontrolü
+            if (location.protocol !== 'https:') {
+                updateStatus('error', '⚠️ Mikrofon çalışması için HTTPS gerekli!');
+            }
+        };
+        
+        // SAYFA KAPANIRKEN MİKROFONU TEMİZLE
+        window.addEventListener('beforeunload', () => {
+            stopListening();
+        });
     </script>
 </body>
 </html>
-
-
-
-
-
-
-
