@@ -1,0 +1,2 @@
+# akort
+guzel anlar olsun
