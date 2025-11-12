@@ -35,29 +35,65 @@
             background: #ff5252;
             transform: scale(1.05);
         }
+        .instrument-buttons {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .instrument-btn {
+            background: rgba(255,255,255,0.2);
+            border: 2px solid rgba(255,255,255,0.3);
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .instrument-btn.active {
+            background: #ff6b6b;
+            border-color: #ff5252;
+            transform: scale(1.1);
+        }
+        .tuning-display {
+            font-size: 20px;
+            margin: 15px 0;
+            padding: 10px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 10px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🎸 AKORT ALETİ</h1>
-        <p>Gitar, keman ve diğer enstrümanlar için akort aleti</p>
+        <p>Enstrümanını seç ve akort et!</p>
+        
+        <!-- ENSTRÜMAN SEÇİMİ -->
+        <div class="instrument-buttons">
+            <div class="instrument-btn active" onclick="selectInstrument('guitar')">🎸 Gitar</div>
+            <div class="instrument-btn" onclick="selectInstrument('piano')">🎹 Piyano</div>
+            <div class="instrument-btn" onclick="selectInstrument('violin')">🎻 Keman</div>
+            <div class="instrument-btn" onclick="selectInstrument('saz')">🎵 Bağlama</div>
+            <div class="instrument-btn" onclick="selectInstrument('ukulele')">🎶 Ukulele</div>
+        </div>
         
         <div id="status">Mikrofon erişimi bekleniyor...</div>
         <button onclick="startListening()">🎤 Mikrofonu Başlat</button>
         
-        <div id="pitchDisplay" style="font-size: 24px; margin: 20px 0;">
-            Perde: ---
+        <!-- AKORT BİLGİSİ -->
+        <div class="tuning-display">
+            <div id="pitchDisplay">Ses Seviyesi: ---</div>
+            <div id="noteDisplay">Tahmini Nota: ---</div>
+            <div id="instrumentInfo">Enstrüman: 🎸 Gitar</div>
+            <div id="tuningInfo">Akort: E A D G B E</div>
         </div>
-        
-        <div id="noteDisplay" style="font-size: 32px; font-weight: bold;">
-            Nota: ---
-        </div>
-        
-        <div style="margin-top: 30px;">
-            <h3>🎯 Özellikler:</h3>
-            <p>✅ Gerçek zamanlı ses analizi</p>
-            <p>✅ Mobil uyumlu</p>
-            <p>✅ Tamamen ücretsiz</p>
+
+        <!-- ENSTRÜMAN AÇIKLAMALARI -->
+        <div id="instrumentDetails" style="margin-top: 20px; text-align: left; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 10px;">
+            <h3>🎯 Gitar Akort Bilgisi:</h3>
+            <p><strong>Kalından inceye:</strong> E (6) - A (5) - D (4) - G (3) - B (2) - E (1)</p>
+            <p><strong>Frekanslar:</strong> E2 (82.41Hz) - A2 (110Hz) - D3 (146.83Hz) - G3 (196Hz) - B3 (246.94Hz) - E4 (329.63Hz)</p>
         </div>
     </div>
 
@@ -66,23 +102,68 @@
         let analyser;
         let microphone;
         let javascriptNode;
+        let currentInstrument = 'guitar';
+        
+        // Enstrüman bilgileri
+        const instrumentData = {
+            guitar: {
+                name: "🎸 Gitar",
+                tuning: "E A D G B E",
+                details: "Kalından inceye: E (6) - A (5) - D (4) - G (3) - B (2) - E (1)"
+            },
+            piano: {
+                name: "🎹 Piyano", 
+                tuning: "A4 = 440Hz (La)",
+                details: "Standart akort: A4 notasının frekansı 440 Hz"
+            },
+            violin: {
+                name: "🎻 Keman",
+                tuning: "G D A E",
+                details: "Kalından inceye: G (4) - D (3) - A (2) - E (1)"
+            },
+            saz: {
+                name: "🎵 Bağlama",
+                tuning: "La Re Sol",
+                details: "Alt tel: La (A), Orta tel: Re (D), Üst tel: Sol (G)"
+            },
+            ukulele: {
+                name: "🎶 Ukulele", 
+                tuning: "G C E A",
+                details: "Kalından inceye: G (4) - C (3) - E (2) - A (1)"
+            }
+        };
+        
+        function selectInstrument(instrument) {
+            currentInstrument = instrument;
+            
+            // Butonları güncelle
+            document.querySelectorAll('.instrument-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // Enstrüman bilgilerini güncelle
+            const data = instrumentData[instrument];
+            document.getElementById('instrumentInfo').textContent = `Enstrüman: ${data.name}`;
+            document.getElementById('tuningInfo').textContent = `Akort: ${data.tuning}`;
+            document.getElementById('instrumentDetails').innerHTML = `
+                <h3>🎯 ${data.name} Akort Bilgisi:</h3>
+                <p><strong>${data.details}</strong></p>
+            `;
+        }
         
         function startListening() {
-            // Mikrofon erişim isteği
             navigator.mediaDevices.getUserMedia({ audio: true })
                 .then(function(stream) {
                     document.getElementById('status').textContent = 'Mikrofon bağlandı! 🎤';
                     
-                    // Audio context oluştur
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
                     analyser = audioContext.createAnalyser();
                     microphone = audioContext.createMediaStreamSource(stream);
                     
-                    // Bağlantıları kur
                     microphone.connect(analyser);
                     analyser.fftSize = 2048;
                     
-                    // Veri işleme
                     javascriptNode = audioContext.createScriptProcessor(2048, 1, 1);
                     analyser.connect(javascriptNode);
                     javascriptNode.connect(audioContext.destination);
@@ -91,7 +172,6 @@
                         const array = new Uint8Array(analyser.frequencyBinCount);
                         analyser.getByteFrequencyData(array);
                         
-                        // Basit perde tespiti
                         let values = 0;
                         for (let i = 0; i < array.length; i++) {
                             values += array[i];
@@ -102,9 +182,9 @@
                         
                         document.getElementById('pitchDisplay').textContent = `Ses Seviyesi: ${pitch}`;
                         
-                        // Basit nota tespiti
-                        const notes = ['Do', 'Re', 'Mi', 'Fa', 'Sol', 'La', 'Si'];
-                        const noteIndex = Math.min(Math.floor(pitch / 10), 6);
+                        // Enstrümana göre nota tespiti
+                        const notes = getNotesForInstrument(currentInstrument);
+                        const noteIndex = Math.min(Math.floor(pitch / 15), notes.length - 1);
                         document.getElementById('noteDisplay').textContent = `Tahmini Nota: ${notes[noteIndex]}`;
                     };
                 })
@@ -113,13 +193,24 @@
                 });
         }
         
-        // Sayfa yüklenince bilgi göster
+        function getNotesForInstrument(instrument) {
+            const noteMap = {
+                guitar: ['E2', 'A2', 'D3', 'G3', 'B3', 'E4', 'Yüksek'],
+                piano: ['C', 'D', 'E', 'F', 'G', 'A', 'B', 'Yüksek'],
+                violin: ['G3', 'D4', 'A4', 'E5', 'Yüksek'],
+                saz: ['La', 'Re', 'Sol', 'Yüksek'],
+                ukulele: ['G', 'C', 'E', 'A', 'Yüksek']
+            };
+            return noteMap[instrument] || noteMap.guitar;
+        }
+        
         window.onload = function() {
-            document.getElementById('status').textContent = '🎸 Akort aleti hazır! Mikrofonu başlat butonuna tıkla.';
+            document.getElementById('status').textContent = '🎸 Akort aleti hazır! Enstrüman seç ve mikrofonu başlat.';
         }
     </script>
 </body>
 </html>
+
 
 
 
