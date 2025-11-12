@@ -1,0 +1,294 @@
+﻿
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎸 Akort Aleti - Prototip</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+
+        .enstruman-listesi {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .enstruman-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .enstruman-btn:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+
+        .enstruman-btn.aktif {
+            background: #e74c3c;
+            box-shadow: 0 5px 15px rgba(231, 76, 60, 0.4);
+        }
+
+        .akort-alani {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 15px;
+            margin: 20px 0;
+        }
+
+        .frekans-gostergesi {
+            font-size: 3em;
+            color: #2c3e50;
+            margin: 20px 0;
+        }
+
+        .nota-bilgisi {
+            font-size: 2em;
+            color: #e74c3c;
+            margin: 10px 0;
+        }
+
+        .akort-durumu {
+            height: 10px;
+            background: #ecf0f1;
+            border-radius: 5px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+
+        .akort-ilerleme {
+            height: 100%;
+            background: linear-gradient(90deg, #e74c3c, #f39c12, #27ae60);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .mikrofon-btn {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 18px;
+            cursor: pointer;
+            margin: 10px;
+            transition: all 0.3s;
+        }
+
+        .mikrofon-btn:hover {
+            background: #219653;
+            transform: scale(1.05);
+        }
+
+        .mikrofon-btn:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+        }
+
+        .talimat {
+            color: #7f8c8d;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎸 Akort Aleti</h1>
+        
+        <div class="enstruman-listesi">
+            <button class="enstruman-btn" data-enstruman="gitar">🎸 Gitar</button>
+            <button class="enstruman-btn" data-enstruman="baglama">🎵 Bağlama</button>
+            <button class="enstruman-btn" data-enstruman="keman">🎻 Keman</button>
+            <button class="enstruman-btn" data-enstruman="piano">🎹 Piyano</button>
+        </div>
+
+        <div class="akort-alani">
+            <div class="frekans-gostergesi">
+                <span id="frekansDegeri">0</span> Hz
+            </div>
+            
+            <div class="nota-bilgisi">
+                <span id="notaDegeri">-</span>
+            </div>
+
+            <div class="akort-durumu">
+                <div class="akort-ilerleme" id="akortIlerleme"></div>
+            </div>
+
+            <button class="mikrofon-btn" id="mikrofonBtn">
+                ?? Mikrofonu Ba�lat
+            </button>
+        </div>
+
+        <div class="talimat">
+            <p>1. Enstr�man se� � 2. Mikrofonu a� � 3. Teli �al � 4. Akort yap!</p>
+        </div>
+    </div>
+
+    <script>
+        // DOM elementleri
+        const frekansDegeri = document.getElementById('frekansDegeri');
+        const notaDegeri = document.getElementById('notaDegeri');
+        const akortIlerleme = document.getElementById('akortIlerleme');
+        const mikrofonBtn = document.getElementById('mikrofonBtn');
+        const enstrumanBtnler = document.querySelectorAll('.enstruman-btn');
+
+        // De�i�kenler
+        let audioContext;
+        let analyser;
+        let microphone;
+        let javascriptNode;
+        let secilenEnstruman = 'gitar';
+
+        // Enstr�man notalar� (Hz cinsinden)
+        const notalar = {
+            'gitar': { 'E2': 82.41, 'A2': 110.00, 'D3': 146.83, 'G3': 196.00, 'B3': 246.94, 'E4': 329.63 },
+            'baglama': { 'La': 220.00, 'Re': 293.66, 'Mi': 329.63, 'Sol': 392.00 },
+            'keman': { 'G3': 196.00, 'D4': 293.66, 'A4': 440.00, 'E5': 659.25 },
+            'piano': { 'C4': 261.63, 'D4': 293.66, 'E4': 329.63, 'F4': 349.23, 'G4': 392.00, 'A4': 440.00, 'B4': 493.88 }
+        };
+
+        // Enstr�man se�imi
+        enstrumanBtnler.forEach(btn => {
+            btn.addEventListener('click', () => {
+                enstrumanBtnler.forEach(b => b.classList.remove('aktif'));
+                btn.classList.add('aktif');
+                secilenEnstruman = btn.dataset.enstruman;
+                console.log('?? Se�ilen enstr�man:', secilenEnstruman);
+            });
+        });
+
+        // �lk enstr�man� se�ili yap
+        document.querySelector('.enstruman-btn').classList.add('aktif');
+
+        // Mikrofon ba�latma
+        mikrofonBtn.addEventListener('click', async () => {
+            try {
+                if (!audioContext) {
+                    await baslatMikrofon();
+                    mikrofonBtn.textContent = '🎤 Mikrofon Açık';
+                    mikrofonBtn.disabled = true;
+                }
+            } catch (error) {
+                console.error('Mikrofon hatas�:', error);
+                alert('Mikrofon eri�imi reddedildi. L�tfen taray�c� ayarlar�ndan izin verin.');
+            }
+        });
+
+        // Mikrofon ba�latma fonksiyonu
+        async function baslatMikrofon() {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 2048;
+
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            microphone = audioContext.createMediaStreamSource(stream);
+            microphone.connect(analyser);
+
+            javascriptNode = audioContext.createScriptProcessor(2048, 1, 1);
+            analyser.connect(javascriptNode);
+            javascriptNode.connect(audioContext.destination);
+
+            javascriptNode.onaudioprocess = () => {
+                const array = new Uint8Array(analyser.frequencyBinCount);
+                analyser.getByteFrequencyData(array);
+
+                // En y�ksek frekans� bul
+                let values = 0;
+                for (let i = 0; i < array.length; i++) {
+                    values += array[i];
+                }
+
+                const average = values / array.length;
+                const frekans = Math.round(average * 2); // Basit frekans hesaplama
+
+                frekansDegeri.textContent = frekans;
+                notaTespitEt(frekans);
+            };
+        }
+
+        // Nota tespit etme
+        function notaTespitEt(frekans) {
+            if (frekans < 50) return;
+
+            const enstrumanNotalari = notalar[secilenEnstruman];
+            let enYakinNota = '-';
+            let enYakinFark = Infinity;
+
+            for (const [nota, hedefFrekans] of Object.entries(enstrumanNotalari)) {
+                const fark = Math.abs(frekans - hedefFrekans);
+                if (fark < enYakinFark) {
+                    enYakinFark = fark;
+                    enYakinNota = nota;
+                }
+            }
+
+            notaDegeri.textContent = enYakinNota;
+
+            // Akort ilerlemesi
+            const hedefFrekans = notalar[secilenEnstruman][enYakinNota];
+            const yuzdelik = Math.max(0, 100 - (Math.abs(frekans - hedefFrekans) / hedefFrekans * 100));
+            akortIlerleme.style.width = yuzdelik + '%';
+
+            // Renk de�i�imi
+            if (yuzdelik > 90) {
+                akortIlerleme.style.background = '#27ae60';
+            } else if (yuzdelik > 70) {
+                akortIlerleme.style.background = '#f39c12';
+            } else {
+                akortIlerleme.style.background = '#e74c3c';
+            }
+        }
+
+        // Sayfa y�klendi�inde ilk enstr�man� se�
+        window.addEventListener('load', () => {
+            console.log('🎸 Akort Aleti Prototip Haz�r!');
+        });
+    </script>
+</body>
+</html>
+
+
+
+
+
+
